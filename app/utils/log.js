@@ -67,18 +67,22 @@ export const log = {
       return;
     }
 
-    if (!isEmpty(title)) {
-      clp({
-        color: 'white',
-        background: 'red',
-        message: title,
-      });
-    }
+    try {
+      if (!isEmpty(title)) {
+        clp({
+          color: 'white',
+          background: 'red',
+          message: title,
+        });
+      }
 
-    clp({
-      color: 'red',
-      message: e,
-    });
+      clp({
+        color: 'red',
+        message: e,
+      });
+    } catch (_) {
+      console.error(title, e);
+    }
   },
 
   /**

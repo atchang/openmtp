@@ -114,12 +114,9 @@ async function installExtensions() {
 
   return installExtension(extensions, {
     forceDownload,
-  }).catch((err) =>
-    log.error(
-      `An extension error occurred: ${err}`,
-      `main.dev -> installExtensions`
-    )
-  );
+  }).catch((err) => {
+    console.warn(`main.dev -> installExtensions ${err}`);
+  });
 }
 
 async function createWindow() {

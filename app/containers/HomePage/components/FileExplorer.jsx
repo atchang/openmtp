@@ -1761,21 +1761,24 @@ class FileExplorer extends Component {
     this._handlePasteConfirm(true);
   };
 
-  _handlePasteConfirm = (confirm) => {
+  _handlePasteConfirm = (action) => {
     const {
       deviceType,
       hideHiddenFiles,
       currentBrowsePath,
       storageId,
       actionCreatePaste,
+      actionCreateThrowError,
+      directoryLists,
       fileTransferClipboard,
     } = this.props;
     const destinationFolder = currentBrowsePath[deviceType];
+    const pasteAction = typeof action === 'string' ? action : 'cancel';
 
     this._handleTogglePasteConfirmDialog(false);
     const deviceTypeUpperCase = deviceType.toUpperCase();
 
-    if (!confirm) {
+    if (pasteAction === 'cancel') {
       analyticsService.sendEvent(
         EVENT_TYPE[`${deviceTypeUpperCase}_PASTE_FILES_DIALOG_CLOSE`],
         {
@@ -1786,11 +1789,49 @@ class FileExplorer extends Component {
       return null;
     }
 
+    let fileTransferClipboardForPaste = fileTransferClipboard;
+
+    if (pasteAction === 'skip') {
+      const destinationNodes = directoryLists[deviceType]?.nodes ?? [];
+      const clipboardItems =
+        fileTransferClipboard.items ??
+        fileTransferClipboard.queue.map((filePath) => ({
+          path: filePath,
+          name: baseName(filePath),
+          size: null,
+          isFolder: false,
+        }));
+
+      const filteredItems = clipboardItems.filter((item) => {
+        if (item.isFolder) {
+          return true;
+        }
+
+        return !destinationNodes.some((node) => node.name === item.name);
+      });
+
+      const filteredQueue = filteredItems.map((item) => item.path);
+
+      if (filteredQueue.length < 1) {
+        actionCreateThrowError({
+          message: `All matching files were skipped.`,
+        });
+
+        return null;
+      }
+
+      fileTransferClipboardForPaste = {
+        ...fileTransferClipboard,
+        queue: filteredQueue,
+        items: filteredItems,
+      };
+    }
+
     actionCreatePaste(
       {
         destinationFolder,
         storageId,
-        fileTransferClipboard,
+        fileTransferClipboard: fileTransferClipboardForPaste,
       },
       {
         filePath: destinationFolder,
@@ -2146,9 +2187,32 @@ class FileExplorer extends Component {
           </div>
         </ProgressBarDialog>
         <ConfirmDialog
+          titleText="Duplicate Files Found"
+          bodyText="Some files in this folder already exist. Choose how you'd like to handle duplicates."
+          actions={[
+            {
+              label: 'Cancel',
+              value: 'cancel',
+              color: 'secondary',
+              variant: 'text',
+            },
+            {
+              label: 'Skip Duplicate Files',
+              value: 'skip',
+              color: 'default',
+              variant: 'text',
+              defaultAction: false,
+            },
+            {
+              label: 'Replace Existing Files',
+              value: 'replace',
+              color: 'primary',
+              variant: 'contained',
+              defaultAction: true,
+            },
+          ]}
           fullWidthDialog
-          maxWidthDialog="xs"
-          bodyText="Replace and merge the existing items?"
+          maxWidthDialog="sm"
           trigger={togglePasteConfirmDialog}
           onClickHandler={this._handlePasteConfirm}
         />
@@ -2445,21 +2509,46 @@ const mapDispatchToProps = (dispatch, _) =>
         async (_, getState) => {
           try {
             let queue = [];
+            let items = [];
+            const { fileTransfer, directoryLists } = getState().Home;
+            const currentClipboardQueue = fileTransfer.clipboard.queue;
+            const currentClipboardItems = fileTransfer.clipboard.items ?? [];
+            const sourceNodes = directoryLists[deviceType]?.nodes ?? [];
+            const selectedItems = (selected || []).map((filePath) => {
+              const node = sourceNodes.find((item) => item.path === filePath);
+
+              return {
+                path: filePath,
+                name: node?.name ?? baseName(filePath),
+                size: node?.size ?? null,
+                isFolder: node?.isFolder ?? false,
+              };
+            });
 
             if (toQueue && isArray(selected) && selected.length > 0) {
-              const currentClipboardQueue =
-                getState().Home.fileTransfer.clipboard.queue;
-
               queue = [...currentClipboardQueue, ...selected];
+              items = [...currentClipboardItems, ...selectedItems];
             } else {
               queue = selected || [];
+              items = selectedItems;
             }
 
             queue = removeArrayDuplicates(queue);
+            items = queue.map((filePath) => {
+              const item = items.find((entry) => entry.path === filePath);
+
+              return {
+                path: filePath,
+                name: item?.name ?? baseName(filePath),
+                size: item?.size ?? null,
+                isFolder: item?.isFolder ?? false,
+              };
+            });
 
             dispatch(
               setFileTransferClipboard({
                 queue,
+                items,
                 source: deviceType,
               })
             );

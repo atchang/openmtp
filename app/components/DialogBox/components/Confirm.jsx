@@ -10,16 +10,40 @@ import DialogTitle from '@material-ui/core/DialogTitle';
 import { styles } from '../styles/Confirm';
 
 class Confirm extends PureComponent {
-  _handleBtnClick = ({ confirm = false }) => {
+  _handleBtnClick = (value) => {
     const { onClickHandler } = this.props;
 
-    onClickHandler(confirm);
+    onClickHandler(value);
   };
 
   _handleKeyPress = (event) => {
     if (event.key === 'Enter') {
-      this._handleBtnClick({ confirm: true });
+      const { actions } = this.props;
+      const defaultAction =
+        actions?.find((action) => action.defaultAction) ?? actions?.[0];
+
+      if (defaultAction) {
+        this._handleBtnClick(defaultAction.value);
+
+        return;
+      }
+
+      this._handleBtnClick(true);
     }
+  };
+
+  _handleEscapeKeyDown = () => {
+    const { actions, onClickHandler } = this.props;
+    const cancelAction =
+      actions?.find((action) => action.value === 'cancel') ?? actions?.[0];
+
+    if (cancelAction) {
+      onClickHandler(cancelAction.value);
+
+      return;
+    }
+
+    onClickHandler(false);
   };
 
   render() {
@@ -30,6 +54,7 @@ class Confirm extends PureComponent {
       trigger,
       fullWidthDialog,
       maxWidthDialog,
+      actions,
     } = this.props;
 
     return (
@@ -40,27 +65,44 @@ class Confirm extends PureComponent {
         maxWidth={maxWidthDialog}
         aria-labelledby="confirm-dialogbox"
         disableEscapeKeyDown={false}
-        onEscapeKeyDown={() => this._handleBtnClick({ confirm: false })}
+        onEscapeKeyDown={this._handleEscapeKeyDown}
       >
         <DialogTitle>{titleText}</DialogTitle>
         <DialogContent>
           <DialogContentText>{bodyText}</DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={() => this._handleBtnClick({ confirm: false })}
-            color="secondary"
-            className={classNames(styles.btnNegative)}
-          >
-            No
-          </Button>
-          <Button
-            onClick={() => this._handleBtnClick({ confirm: true })}
-            color="primary"
-            className={classNames(styles.btnPositive)}
-          >
-            Yes
-          </Button>
+          {actions ? (
+            actions.map((action) => (
+              <Button
+                key={action.label}
+                onClick={() => this._handleBtnClick(action.value)}
+                color={action.color ?? 'primary'}
+                variant={action.variant ?? 'text'}
+                className={classNames(action.className)}
+                autoFocus={action.autoFocus ?? false}
+              >
+                {action.label}
+              </Button>
+            ))
+          ) : (
+            <>
+              <Button
+                onClick={() => this._handleBtnClick(false)}
+                color="secondary"
+                className={classNames(styles.btnNegative)}
+              >
+                No
+              </Button>
+              <Button
+                onClick={() => this._handleBtnClick(true)}
+                color="primary"
+                className={classNames(styles.btnPositive)}
+              >
+                Yes
+              </Button>
+            </>
+          )}
         </DialogActions>
       </Dialog>
     );
